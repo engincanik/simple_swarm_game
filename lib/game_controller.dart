@@ -1,22 +1,51 @@
+import 'dart:math';
+
 import 'package:flame/flame.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simple_swarm_game/components/enemy.dart';
+import 'package:simple_swarm_game/components/enemy_spawner.dart';
+import 'package:simple_swarm_game/components/health_bar.dart';
+import 'package:simple_swarm_game/components/highscore_text.dart';
+import 'package:simple_swarm_game/components/score_text.dart';
+import 'package:simple_swarm_game/components/start_text.dart';
 
 import 'components/player.dart';
+import 'game_state.dart';
 
 class GameController extends Game {
+  final SharedPreferences storage;
+  Random rand;
   Size screenSize;
   // We need tileSize to move enemy same speed regardless of screen size
   double tileSize;
   Player player;
+  List<Enemy> enemies;
+  HealthBar healthBar;
+  EnemySpanner enemySpanner;
+  int score;
+  ScoreText scoreText;
+  GameState state;
+  HighscoreText highscoreText;
+  StartText startText;
 
-  GameController() {
+  GameController(this.storage) {
     initialize();
   }
 
   void initialize() async {
     resize(await Flame.util.initialDimensions());
+    state = GameState.menu;
+    rand = Random();
     player = Player(this);
+    enemies = List<Enemy>();
+    enemySpanner = EnemySpanner(this);
+    healthBar = HealthBar(this);
+    score = 0;
+    scoreText = ScoreText(this);
+    highscoreText = HighscoreText(this);
+    startText = StartText(this);
   }
 
   void render(Canvas c) {
@@ -27,9 +56,29 @@ class GameController extends Game {
     // Make sure app renders background first.
     // That's why player.render() comes after
     player.render(c);
+    if (state == GameState.menu) {
+      startText.render(c);
+      highscoreText.render(c);
+    } else {
+      enemies.forEach((Enemy enemy) => enemy.render(c));
+      scoreText.render(c);
+      healthBar.render(c);
+    }
   }
 
-  void update(double t) {}
+  void update(double t) {
+    if (state == GameState.menu) {
+      startText.update(t);
+      highscoreText.update(t);
+    } else {
+      enemySpanner.update(t);
+      enemies.forEach((Enemy enemy) => enemy.update(t));
+      enemies.removeWhere((Enemy enemy) => enemy.isDead);
+      player.update(t);
+      scoreText.update(t);
+      healthBar.update(t);
+    }
+  }
 
   void resize(Size size) {
     screenSize = size;
@@ -37,6 +86,41 @@ class GameController extends Game {
   }
 
   void onTapDown(TapDownDetails d) {
-    print(d.globalPosition);
+    if (state == GameState.menu) {
+      state = GameState.playing;
+    } else if (state == GameState.playing) {
+      enemies.forEach((Enemy enemy) {
+        if (enemy.enemyRect.contains(d.globalPosition)) {
+          enemy.onTapDown();
+        }
+      });
+    }
+  }
+
+  void spawnEnemy() {
+    double x, y;
+    switch (rand.nextInt(4)) {
+      case 0:
+        // Top
+        x = rand.nextDouble() * screenSize.width;
+        y = -tileSize * 2.5;
+        break;
+      case 1:
+        // Right
+        x = screenSize.width + tileSize * 2.5;
+        y = rand.nextDouble() * screenSize.height;
+        break;
+      case 2:
+        // Bottom
+        x = rand.nextDouble() * screenSize.width;
+        y = screenSize.height + tileSize * 2.5;
+        break;
+      case 3:
+        // Left
+        x = -tileSize * 2.5;
+        y = rand.nextDouble() * screenSize.height;
+        break;
+    }
+    enemies.add(Enemy(this, x, y));
   }
 }

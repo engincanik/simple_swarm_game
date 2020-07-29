@@ -25,5 +25,10 @@ class Player {
     c.drawRect(playerRect, color);
   }
 
-  void update(double t) {}
+  void update(double t) {
+    if (!isDead && currentHealth <= 0) {
+      isDead = true;
+      gameController.initialize();
+    }
+  }
 }
